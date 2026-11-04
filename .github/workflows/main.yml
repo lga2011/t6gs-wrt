@@ -37,12 +37,19 @@ jobs:
     - name: Update & Install Feeds (ZJU Mirror)
       working-directory: ${{ github.workspace }}/immortalwrt
       run: |
+        # 如果默认配置文件不存在，从示例复制一份
+        if [ ! -f feeds.conf.default ] && [ -f feeds.conf.default.sample ]; then
+          cp feeds.conf.default.sample feeds.conf.default
+        fi
+
         # 替换 feeds.conf.default 中的官方源为浙江大学镜像站
         if [ -f feeds.conf.default ]; then
           sed -i 's/downloads.openwrt.org/mirrors.zju.edu.cn\/immortalwrt/g' feeds.conf.default
           sed -i 's/git.openwrt.org/mirrors.zju.edu.cn\/git/g' feeds.conf.default
           sed -i 's/github.com/mirrors.zju.edu.cn\/github/g' feeds.conf.default
         fi
+
+        # 执行 feeds 更新与安装
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
