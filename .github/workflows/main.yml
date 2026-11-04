@@ -1,11 +1,11 @@
-name: Build OpenWrt for 360 T6GS (Complete Packages & Aliyun)
+name: Build ImmortalWrt for 360 T6GS (ZJU Mirror)
 
 on:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com/openwrt/openwrt.git
-  REPO_BRANCH: master
+  REPO_URL: https://github.com/immortalwrt/immortalwrt.git
+  REPO_BRANCH: openwrt-25.12
   UPLOAD_RELEASE: true
 
 jobs:
@@ -28,30 +28,26 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    - name: Clone OpenWrt Source
+    - name: Clone ImmortalWrt Source
       working-directory: /workdir
       run: |
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+        git clone $REPO_URL -b $REPO_BRANCH immortalwrt
+        ln -sf /workdir/immortalwrt $GITHUB_WORKSPACE/immortalwrt
 
-    - name: Update & Install Feeds
-      working-directory: ${{ github.workspace }}/openwrt
+    - name: Update & Install Feeds (ZJU Mirror)
+      working-directory: ${{ github.workspace }}/immortalwrt
       run: |
+        # 替换 feeds.conf.default 中的官方源为浙江大学镜像站
+        if [ -f feeds.conf.default ]; then
+          sed -i 's/downloads.openwrt.org/mirrors.zju.edu.cn\/immortalwrt/g' feeds.conf.default
+          sed -i 's/git.openwrt.org/mirrors.zju.edu.cn\/git/g' feeds.conf.default
+          sed -i 's/github.com/mirrors.zju.edu.cn\/github/g' feeds.conf.default
+        fi
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Change Feeds to China Mirror (Aliyun)
-      working-directory: ${{ github.workspace }}/openwrt
-      run: |
-        # 替换默认下载源为阿里云开源镜像
-        if [ -f feeds.conf.default ]; then
-          sed -i 's/downloads.openwrt.org/mirrors.aliyun.com\/openwrt/g' feeds.conf.default
-          sed -i 's/git.openwrt.org/mirrors.aliyun.com\/git\/openwrt/g' feeds.conf.default
-        fi
-        ./scripts/feeds update -a
-
     - name: Generate Target Configuration (.config)
-      working-directory: ${{ github.workspace }}/openwrt
+      working-directory: ${{ github.workspace }}/immortalwrt
       run: |
         cat <<EOF > .config
         # -----------------------------------------------------------
@@ -62,18 +58,15 @@ jobs:
         CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360t6gs=y
 
         # -----------------------------------------------------------
-        # 2. 您指定的全部预装软件包 (包含核心、网络、硬件及无线驱动)
+        # 2. 系统核心、网络及 360 T6GS 的 MT7915 无线驱动
         # -----------------------------------------------------------
-        CONFIG_PACKAGE_apk-openssl=y
         CONFIG_PACKAGE_base-files=y
         CONFIG_PACKAGE_block-mount=y
         CONFIG_PACKAGE_ca-bundle=y
-        CONFIG_PACKAGE_default-settings-chn=y
         CONFIG_PACKAGE_dnsmasq-full=y
         CONFIG_PACKAGE_dropbear=y
         CONFIG_PACKAGE_firewall4=y
         CONFIG_PACKAGE_fstools=y
-        CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
         CONFIG_PACKAGE_kmod-gpio-button-hotplug=y
         CONFIG_PACKAGE_kmod-leds-gpio=y
         CONFIG_PACKAGE_kmod-nf-nathelper=y
@@ -97,8 +90,7 @@ jobs:
         CONFIG_PACKAGE_urandom-seed=y
         CONFIG_PACKAGE_urngd=y
         CONFIG_PACKAGE_wpad-openssl=y
-        CONFIG_PACKAGE_kmod-mt7603=y
-        CONFIG_PACKAGE_kmod-mt76x2=y
+        CONFIG_PACKAGE_kmod-mt7915-firmware=y
 
         # -----------------------------------------------------------
         # 3. 中文语言包及 Web 界面扩展
@@ -111,7 +103,7 @@ jobs:
         make defconfig
 
     - name: Download Package Dependencies
-      working-directory: ${{ github.workspace }}/openwrt
+      working-directory: ${{ github.workspace }}/immortalwrt
       run: |
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
@@ -119,9 +111,9 @@ jobs:
 
     - name: Compile Firmware
       id: compile
-      working-directory: ${{ github.workspace }}/openwrt
+      working-directory: ${{ github.workspace }}/immortalwrt
       run: |
-        echo "::group::Compiling OpenWrt"
+        echo "::group::Compiling ImmortalWrt"
         make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
         echo "::endgroup::"
@@ -130,7 +122,7 @@ jobs:
       id: organize
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        cd openwrt/bin/targets/ramips/mt7621
+        cd immortalwrt/bin/targets/ramips/mt7621
         rm -rf packages
         echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
@@ -139,7 +131,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: OpenWrt_360T6GS_FullCustom
+        name: ImmortalWrt_360T6GS_FullCustom
         path: ${{ env.FIRMWARE_PATH }}/*360*
 
     - name: Create GitHub Release
@@ -148,6 +140,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: 360T6GS-FullCustom-${{ github.run_id }}
-        name: OpenWrt 360 T6GS Custom Firmware (Aliyun + Chinese)
+        tag_name: 360T6GS-ImmortalWrt-25.12-${{ github.run_id }}
+        name: ImmortalWrt 25.12 360 T6GS Custom Firmware (ZJU Mirror)
         files: ${{ env.FIRMWARE_PATH }}/*360*
