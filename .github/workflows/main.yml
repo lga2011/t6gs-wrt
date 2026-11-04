@@ -305,8 +305,8 @@ jobs:
             fi
           fi
 
-          # 替换国内镜像源
-          sed -i 's/github.com/mirrors.zju.edu.cn\/github/g' feeds.conf
+          # 注意：不要把 github.com 替换为不兼容的自建/代理前缀，
+          # 保持 feeds.conf 里的 github.com 地址不变，以防克隆失败。
 
           python3 - <<'PY'
           from pathlib import Path
