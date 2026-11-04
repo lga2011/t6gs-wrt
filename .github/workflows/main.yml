@@ -1,0 +1,153 @@
+name: Build OpenWrt for 360 T6GS (Complete Packages & Aliyun)
+
+on:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/openwrt/openwrt.git
+  REPO_BRANCH: master
+  UPLOAD_RELEASE: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Initialize Environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/local/share/chromium /usr/local/lib/node_modules
+        sudo apt-get update
+        sudo apt-get install -y build-essential clang flex bison gawk gettext git libncurses-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget
+        sudo apt-get clean
+        sudo timedatectl set-timezone "Asia/Shanghai"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: Clone OpenWrt Source
+      working-directory: /workdir
+      run: |
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: Update & Install Feeds
+      working-directory: ${{ github.workspace }}/openwrt
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Change Feeds to China Mirror (Aliyun)
+      working-directory: ${{ github.workspace }}/openwrt
+      run: |
+        # 替换默认下载源为阿里云开源镜像
+        if [ -f feeds.conf.default ]; then
+          sed -i 's/downloads.openwrt.org/mirrors.aliyun.com\/openwrt/g' feeds.conf.default
+          sed -i 's/git.openwrt.org/mirrors.aliyun.com\/git\/openwrt/g' feeds.conf.default
+        fi
+        ./scripts/feeds update -a
+
+    - name: Generate Target Configuration (.config)
+      working-directory: ${{ github.workspace }}/openwrt
+      run: |
+        cat <<EOF > .config
+        # -----------------------------------------------------------
+        # 1. 目标架构与设备配置 (360 T6GS)
+        # -----------------------------------------------------------
+        CONFIG_TARGET_ramips=y
+        CONFIG_TARGET_ramips_mt7621=y
+        CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360t6gs=y
+
+        # -----------------------------------------------------------
+        # 2. 您指定的全部预装软件包 (包含核心、网络、硬件及无线驱动)
+        # -----------------------------------------------------------
+        CONFIG_PACKAGE_apk-openssl=y
+        CONFIG_PACKAGE_base-files=y
+        CONFIG_PACKAGE_block-mount=y
+        CONFIG_PACKAGE_ca-bundle=y
+        CONFIG_PACKAGE_default-settings-chn=y
+        CONFIG_PACKAGE_dnsmasq-full=y
+        CONFIG_PACKAGE_dropbear=y
+        CONFIG_PACKAGE_firewall4=y
+        CONFIG_PACKAGE_fstools=y
+        CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
+        CONFIG_PACKAGE_kmod-gpio-button-hotplug=y
+        CONFIG_PACKAGE_kmod-leds-gpio=y
+        CONFIG_PACKAGE_kmod-nf-nathelper=y
+        CONFIG_PACKAGE_kmod-nft-offload=y
+        CONFIG_PACKAGE_libc=y
+        CONFIG_PACKAGE_libgcc=y
+        CONFIG_PACKAGE_libustream-openssl=y
+        CONFIG_PACKAGE_logd=y
+        CONFIG_PACKAGE_luci=y
+        CONFIG_PACKAGE_mtd=y
+        CONFIG_PACKAGE_netifd=y
+        CONFIG_PACKAGE_nftables=y
+        CONFIG_PACKAGE_odhcp6c=y
+        CONFIG_PACKAGE_odhcpd-ipv6only=y
+        CONFIG_PACKAGE_ppp=y
+        CONFIG_PACKAGE_ppp-mod-pppoe=y
+        CONFIG_PACKAGE_procd-ujail=y
+        CONFIG_PACKAGE_uboot-envtools=y
+        CONFIG_PACKAGE_uci=y
+        CONFIG_PACKAGE_uclient-fetch=y
+        CONFIG_PACKAGE_urandom-seed=y
+        CONFIG_PACKAGE_urngd=y
+        CONFIG_PACKAGE_wpad-openssl=y
+        CONFIG_PACKAGE_kmod-mt7603=y
+        CONFIG_PACKAGE_kmod-mt76x2=y
+
+        # -----------------------------------------------------------
+        # 3. 中文语言包及 Web 界面扩展
+        # -----------------------------------------------------------
+        CONFIG_PACKAGE_luci-ssl=y
+        CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+        CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+        CONFIG_PACKAGE_luci-i18n-opkg-zh-cn=y
+        EOF
+        make defconfig
+
+    - name: Download Package Dependencies
+      working-directory: ${{ github.workspace }}/openwrt
+      run: |
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -rf {} \;
+
+    - name: Compile Firmware
+      id: compile
+      working-directory: ${{ github.workspace }}/openwrt
+      run: |
+        echo "::group::Compiling OpenWrt"
+        make -j$(nproc) || make -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+        echo "::endgroup::"
+
+    - name: Organize Output Artifacts
+      id: organize
+      if: steps.compile.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt/bin/targets/ramips/mt7621
+        rm -rf packages
+        echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: Upload Firmware to Artifacts
+      uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_360T6GS_FullCustom
+        path: ${{ env.FIRMWARE_PATH }}/*360*
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: env.UPLOAD_RELEASE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: 360T6GS-FullCustom-${{ github.run_id }}
+        name: OpenWrt 360 T6GS Custom Firmware (Aliyun + Chinese)
+        files: ${{ env.FIRMWARE_PATH }}/*360*
