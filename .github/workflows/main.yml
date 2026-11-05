@@ -469,10 +469,9 @@ jobs:
           ls -lh "$DIR"
 
           INITRAMFS="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-initramfs-kernel.bin"
-          SQUASHFS="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-firmware.bin"
           SYSUPGRADE="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-sysupgrade.bin"
 
-          for f in "$INITRAMFS" "$SQUASHFS" "$SYSUPGRADE"; do
+          for f in "$INITRAMFS" "$SYSUPGRADE"; do
             if [ ! -s "$f" ]; then
               echo "Missing or empty: $f"
               exit 1
@@ -483,7 +482,6 @@ jobs:
           cd "$DIR"
           sha256sum \
             "$(basename "$INITRAMFS")" \
-            "$(basename "$SQUASHFS")" \
             "$(basename "$SYSUPGRADE")" > sha256sums.txt
 
           echo "===== SHA256 ====="
