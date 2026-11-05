@@ -256,7 +256,7 @@ jobs:
           };
           DTS
 
-      # 5. Register T6GS NAND device
+      # 5. Register T6GS NAND device (Using IMAGES += firmware.bin)
       - name: Register T6GS device
         working-directory: openwrt
         run: |
@@ -279,9 +279,8 @@ jobs:
               DEVICE_MODEL := 360 T6GS
               DEVICE_DTS := mt7621_qihoo_360t6gs
               IMAGE_SIZE := 125000k
-              # 明确同时生成 factory.bin 和 sysupgrade.bin
-              IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-ubi | check-size
-              IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+              IMAGES += firmware.bin
+              IMAGE/firmware.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-ubi | check-size
               DEVICE_PACKAGES += kmod-mt7915e kmod-mt7915-firmware
           endef
           TARGET_DEVICES += qihoo_360t6gs
@@ -295,7 +294,6 @@ jobs:
       - name: Configure Feeds and Mirror
         working-directory: openwrt
         run: |
-          # 确保 feeds.conf 存在
           if [ ! -f feeds.conf ]; then
             if [ -f feeds.conf.default ]; then
               cp feeds.conf.default feeds.conf
@@ -306,9 +304,6 @@ jobs:
               echo "src-git telephony https://github.com/immortalwrt/telephony.git" >> feeds.conf
             fi
           fi
-
-          # 注意：不要把 github.com 替换为不兼容的自建/代理前缀，
-          # 保持 feeds.conf 里的 github.com 地址不变，以防克隆失败。
 
           python3 - <<'PY'
           from pathlib import Path
@@ -461,7 +456,7 @@ jobs:
           echo "===== Build completed ====="
           date
 
-      # 12. Verify images
+      # 12. Verify images & rename factory bin
       - name: Verify firmware
         working-directory: openwrt
         run: |
@@ -470,23 +465,32 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          # 使用通配符动态寻找对应文件
-          INITRAMFS=$(ls "$DIR"/*-initramfs-kernel.bin 2>/dev/null || true)
-          FACTORY=$(ls "$DIR"/*-factory.bin 2>/dev/null || true)
-          SYSUPGRADE=$(ls "$DIR"/*-sysupgrade.bin 2>/dev/null || true)
+          # 检查编译产出的原始 firmware.bin
+          test -s "$DIR/firmware.bin" || {
+            echo "Missing firmware.bin"
+            exit 1
+          }
 
-          for f in "$INITRAMFS" "$FACTORY" "$SYSUPGRADE"; do
-            if [ -z "$f" ] || [ ! -s "$f" ]; then
-              echo "Missing or empty file matching pattern!"
-              exit 1
-            fi
-            echo "[OK] $(basename "$f")"
-          done
+          # 按照你的要求重命名为带完整前缀的标准 squashfs-factory.bin
+          FACTORY_NAME="immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-factory.bin"
+          mv "$DIR/firmware.bin" "$DIR/$FACTORY_NAME"
+
+          # 动态匹配 sysupgrade 固件
+          SYSUPGRADE=$(find "$DIR" -maxdepth 1 \
+            -name '*qihoo_360t6gs*sysupgrade.bin' \
+            -print -quit)
+
+          if [ -z "$SYSUPGRADE" ]; then
+            echo "Missing T6GS sysupgrade image"
+            exit 1
+          fi
+
+          echo "[OK] $FACTORY_NAME"
+          echo "[OK] $(basename "$SYSUPGRADE")"
 
           cd "$DIR"
           sha256sum \
-            "$(basename "$INITRAMFS")" \
-            "$(basename "$FACTORY")" \
+            "$FACTORY_NAME" \
             "$(basename "$SYSUPGRADE")" > sha256sums.txt
 
           echo "===== SHA256 ====="
