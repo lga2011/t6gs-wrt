@@ -468,13 +468,14 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          INITRAMFS="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-initramfs-kernel.bin"
-          FACTORY="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-factory.bin"
-          SYSUPGRADE="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-sysupgrade.bin"
+          # 使用通配符动态寻找对应文件，不再硬编码机型前缀
+          INITRAMFS=$(ls "$DIR"/*-initramfs-kernel.bin 2>/dev/null || true)
+          FACTORY=$(ls "$DIR"/*-factory.bin 2>/dev/null || true)
+          SYSUPGRADE=$(ls "$DIR"/*-sysupgrade.bin 2>/dev/null || true)
 
           for f in "$INITRAMFS" "$FACTORY" "$SYSUPGRADE"; do
-            if [ ! -s "$f" ]; then
-              echo "Missing or empty: $f"
+            if [ -z "$f" ] || [ ! -s "$f" ]; then
+              echo "Missing or empty file matching pattern!"
               exit 1
             fi
             echo "[OK] $(basename "$f")"
