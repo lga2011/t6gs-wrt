@@ -456,7 +456,7 @@ jobs:
           echo "===== Build completed ====="
           date
 
-      # 12. Verify images & rename factory bin
+      # 12. Verify images
       - name: Verify firmware
         working-directory: openwrt
         run: |
@@ -465,22 +465,26 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          # 检查编译产出的原始 firmware.bin
-          test -s "$DIR/firmware.bin" || {
-            echo "Missing firmware.bin"
-            exit 1
-          }
+          # 直接动态查找生成的 firmware.bin 固件（即 factory 格式）
+          RAW_FACTORY=$(find "$DIR" -maxdepth 1 \
+            -name '*qihoo_360t6gs*squashfs-firmware.bin' \
+            -print -quit)
 
-          # 按照你的要求重命名为带完整前缀的标准 squashfs-factory.bin
+          if [ -z "$RAW_FACTORY" ] || [ ! -s "$RAW_FACTORY" ]; then
+            echo "Missing squashfs-firmware.bin"
+            exit 1
+          fi
+
+          # 按照你的要求重命名为带标准 factory 后缀的文件
           FACTORY_NAME="immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-factory.bin"
-          mv "$DIR/firmware.bin" "$DIR/$FACTORY_NAME"
+          mv "$RAW_FACTORY" "$DIR/$FACTORY_NAME"
 
           # 动态匹配 sysupgrade 固件
           SYSUPGRADE=$(find "$DIR" -maxdepth 1 \
             -name '*qihoo_360t6gs*sysupgrade.bin' \
             -print -quit)
 
-          if [ -z "$SYSUPGRADE" ]; then
+          if [ -z "$SYSUPGRADE" ] || [ ! -s "$SYSUPGRADE" ]; then
             echo "Missing T6GS sysupgrade image"
             exit 1
           fi
