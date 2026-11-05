@@ -273,14 +273,14 @@ jobs:
 
           device = """
           define Device/qihoo_360t6gs
-            $(Device/nand)
-            $(Device/uimage-lzma-loader)
-            DEVICE_VENDOR := Qihoo
-            DEVICE_MODEL := 360 T6GS
-            DEVICE_DTS := mt7621_qihoo_360t6gs
-            IMAGE_SIZE := 125000k
-            IMAGE/firmware.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-ubi | check-size
-            DEVICE_PACKAGES += kmod-mt7915e kmod-mt7915-firmware
+              $(Device/nand)
+              $(Device/uimage-lzma-loader)
+              DEVICE_VENDOR := Qihoo
+              DEVICE_MODEL := 360 T6GS
+              DEVICE_DTS := mt7621_qihoo_360t6gs
+              IMAGE_SIZE := 125000k
+              IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-ubi | check-size
+              DEVICE_PACKAGES += kmod-mt7915e kmod-mt7915-firmware
           endef
           TARGET_DEVICES += qihoo_360t6gs
           """
@@ -469,9 +469,10 @@ jobs:
           ls -lh "$DIR"
 
           INITRAMFS="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-initramfs-kernel.bin"
+          FACTORY="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-factory.bin"
           SYSUPGRADE="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-sysupgrade.bin"
 
-          for f in "$INITRAMFS" "$SYSUPGRADE"; do
+          for f in "$INITRAMFS" "$FACTORY" "$SYSUPGRADE"; do
             if [ ! -s "$f" ]; then
               echo "Missing or empty: $f"
               exit 1
@@ -482,6 +483,7 @@ jobs:
           cd "$DIR"
           sha256sum \
             "$(basename "$INITRAMFS")" \
+            "$(basename "$FACTORY")" \
             "$(basename "$SYSUPGRADE")" > sha256sums.txt
 
           echo "===== SHA256 ====="
