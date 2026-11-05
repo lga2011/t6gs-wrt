@@ -279,7 +279,9 @@ jobs:
               DEVICE_MODEL := 360 T6GS
               DEVICE_DTS := mt7621_qihoo_360t6gs
               IMAGE_SIZE := 125000k
+              # 明确同时生成 factory.bin 和 sysupgrade.bin
               IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-ubi | check-size
+              IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
               DEVICE_PACKAGES += kmod-mt7915e kmod-mt7915-firmware
           endef
           TARGET_DEVICES += qihoo_360t6gs
@@ -468,7 +470,7 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          # 使用通配符动态寻找对应文件，不再硬编码机型前缀
+          # 使用通配符动态寻找对应文件
           INITRAMFS=$(ls "$DIR"/*-initramfs-kernel.bin 2>/dev/null || true)
           FACTORY=$(ls "$DIR"/*-factory.bin 2>/dev/null || true)
           SYSUPGRADE=$(ls "$DIR"/*-sysupgrade.bin 2>/dev/null || true)
