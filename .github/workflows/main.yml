@@ -468,28 +468,26 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          echo "===== T6GS images ====="
-          find "$DIR" -maxdepth 1 -type f \
-            \( -name '*qihoo_360t6gs*' -o -name 'firmware.bin' \) \
-            -print
+          INITRAMFS="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-initramfs-kernel.bin"
+          SQUASHFS="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-firmware.bin"
+          SYSUPGRADE="$DIR/immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-sysupgrade.bin"
 
-          test -s "$DIR/firmware.bin" || {
-            echo "Missing firmware.bin"
-            exit 1
-          }
+          for f in "$INITRAMFS" "$SQUASHFS" "$SYSUPGRADE"; do
+            if [ ! -s "$f" ]; then
+              echo "Missing or empty: $f"
+              exit 1
+            fi
+            echo "[OK] $(basename "$f")"
+          done
 
-          SYSUPGRADE=$(find "$DIR" -maxdepth 1 \
-            -name '*qihoo_360t6gs*sysupgrade.bin' \
-            -print -quit)
-
-          if [ -z "$SYSUPGRADE" ]; then
-            echo "Missing T6GS sysupgrade image"
-            exit 1
-          }
-
-          echo "SYSUPGRADE=$SYSUPGRADE" >> "$GITHUB_ENV"
           cd "$DIR"
-          sha256sum firmware.bin "$SYSUPGRADE" > sha256sums.txt
+          sha256sum \
+            "$(basename "$INITRAMFS")" \
+            "$(basename "$SQUASHFS")" \
+            "$(basename "$SYSUPGRADE")" > sha256sums.txt
+
+          echo "===== SHA256 ====="
+          cat sha256sums.txt
 
       # 13. Upload firmware
       - name: Upload T6GS firmware
