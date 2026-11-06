@@ -506,32 +506,36 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          RAW_FACTORY=$(find "$DIR" -maxdepth 1 \
-            -name '*qihoo_360t6gs*squashfs-firmware.bin' \
-            -print -quit)
+          # 1. 查找并验证 initramfs 内核镜像
+          INITRAMFS_RAW=$(find "$DIR" -maxdepth 1 -name '*qihoo_360t6gs*initramfs-kernel.bin' -print -quit)
+          if [ -z "$INITRAMFS_RAW" ] || [ ! -s "$INITRAMFS_RAW" ]; then
+            echo "Missing initramfs-kernel.bin"
+            exit 1
+          fi
 
+          # 2. 查找并重命名 factory 镜像
+          RAW_FACTORY=$(find "$DIR" -maxdepth 1 -name '*qihoo_360t6gs*squashfs-firmware.bin' -print -quit)
           if [ -z "$RAW_FACTORY" ] || [ ! -s "$RAW_FACTORY" ]; then
             echo "Missing squashfs-firmware.bin"
             exit 1
           fi
-
           FACTORY_NAME="immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-factory.bin"
           mv "$RAW_FACTORY" "$DIR/$FACTORY_NAME"
 
-          SYSUPGRADE=$(find "$DIR" -maxdepth 1 \
-            -name '*qihoo_360t6gs*sysupgrade.bin' \
-            -print -quit)
-
+          # 3. 查找并验证 sysupgrade 镜像
+          SYSUPGRADE=$(find "$DIR" -maxdepth 1 -name '*qihoo_360t6gs*sysupgrade.bin' -print -quit)
           if [ -z "$SYSUPGRADE" ] || [ ! -s "$SYSUPGRADE" ]; then
             echo "Missing T6GS sysupgrade image"
             exit 1
           fi
 
+          echo "[OK] $(basename "$INITRAMFS_RAW")"
           echo "[OK] $FACTORY_NAME"
           echo "[OK] $(basename "$SYSUPGRADE")"
 
           cd "$DIR"
           sha256sum \
+            "$(basename "$INITRAMFS_RAW")" \
             "$FACTORY_NAME" \
             "$(basename "$SYSUPGRADE")" > sha256sums.txt
 
