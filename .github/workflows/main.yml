@@ -68,7 +68,7 @@ jobs:
           echo "===== ImmortalWrt version ====="
           git log -1 --oneline
 
-      # 4. Install T6GS DTS
+      # 4. Install T6GS DTS (严格对齐 3 个 LAN + 1 个 WAN 硬件)
       - name: Add T6GS DTS
         working-directory: openwrt
         run: |
@@ -295,23 +295,26 @@ jobs:
           print("T6GS device definition registered.")
           PY
 
-      # 6. Configure Default IP (192.168.2.1) & Default Wi-Fi (mixed WPA2/WPA3 PSK, SAE)
-      - name: Customize Default IP and Wireless Setup
+      # 6. Customize Default IP, Argon Theme & Wireless (mixed WPA2/WPA3 PSK, SAE)
+      - name: Customize Default Settings, IP and Wireless
         working-directory: openwrt
         run: |
           mkdir -p package/base-files/files/etc/uci-defaults
           cat > package/base-files/files/etc/uci-defaults/99-custom-settings << 'EOF'
           #!/bin/sh
 
-          # 修改默认 LAN IP 为 192.168.2.1
+          # 1. 修改默认 LAN IP 为 192.168.2.1
           uci set network.lan.ipaddr='192.168.2.1'
           uci commit network
 
-          # 自动配置无线 Wi-Fi 名称、密码与混合加密方式 (mixed WPA2/WPA3 PSK, SAE)
+          # 2. 强制将默认后台主题设置为 argon
+          uci set luci.main.mediaurlbase='/luci-static/argon'
+          uci commit luci
+
+          # 3. 自动配置无线 Wi-Fi 名称、密码与混合加密方式 (mixed WPA2/WPA3 PSK, SAE)
           uci set wireless.radio0.disabled='0'
           uci set wireless.radio1.disabled='0'
 
-          # 清理默认可能存在的无线接口配置
           uci delete wireless.default_radio0 2>/dev/null
           uci delete wireless.default_radio1 2>/dev/null
 
@@ -336,8 +339,8 @@ jobs:
           EOF
           chmod +x package/base-files/files/etc/uci-defaults/99-custom-settings
 
-      # 7. Configure Feeds and Mirrors
-      - name: Configure Feeds and Mirrors
+      # 7. Configure Feeds
+      - name: Configure Feeds
         working-directory: openwrt
         run: |
           if [ ! -f feeds.conf ]; then
@@ -350,27 +353,6 @@ jobs:
               echo "src-git telephony https://github.com/immortalwrt/telephony.git" >> feeds.conf
             fi
           fi
-
-          python3 - <<'PY'
-          from pathlib import Path
-          old = "https://downloads.immortalwrt.org"
-          new = "https://mirrors.zju.edu.cn/immortalwrt"
-          count = 0
-          for root in (Path("package/base-files"), Path("target/linux"), Path("sdk")):
-              if not root.exists():
-                  continue
-              for path in root.rglob("*"):
-                  if not path.is_file():
-                      continue
-                  try:
-                      content = path.read_text()
-                  except (UnicodeDecodeError, OSError):
-                      continue
-                  if old in content:
-                      path.write_text(content.replace(old, new))
-                      count += 1
-          print("Mirror replacement files:", count)
-          PY
 
       # 8. Update feeds
       - name: Update feeds
