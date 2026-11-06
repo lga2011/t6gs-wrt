@@ -1,4 +1,4 @@
-name: Build ImmortalWrt 25.12 - Qihoo 360 T6GS
+name: Build ImmortalWrt 25.12.2 - Qihoo 360 T6GS
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH: openwrt-25.12
+  REPO_BRANCH: v25.12.2
   MIRROR: https://mirrors.zju.edu.cn/immortalwrt
 
 jobs:
@@ -256,7 +256,7 @@ jobs:
           };
           DTS
 
-      # 5. Register T6GS NAND device (Using IMAGES += firmware.bin)
+      # 5. Register T6GS NAND device
       - name: Register T6GS device
         working-directory: openwrt
         run: |
@@ -290,8 +290,49 @@ jobs:
           print("T6GS device definition registered.")
           PY
 
-      # 6. Initialize Feeds Configuration and Mirror
-      - name: Configure Feeds and Mirror
+      # 6. Configure Default IP (192.168.2.1) & Default Wi-Fi (mixed WPA2/WPA3 PSK, SAE)
+      - name: Customize Default IP and Wireless Setup
+        working-directory: openwrt
+        run: |
+          mkdir -p package/base-files/files/etc/uci-defaults
+          cat > package/base-files/files/etc/uci-defaults/99-custom-settings << 'EOF'
+          #!/bin/sh
+
+          # 修改默认 LAN IP 为 192.168.2.1
+          uci set network.lan.ipaddr='192.168.2.1'
+          uci commit network
+
+          # 自动配置无线 Wi-Fi 名称、密码与混合加密方式 (mixed WPA2/WPA3 PSK, SAE)
+          uci set wireless.radio0.disabled='0'
+          uci set wireless.radio1.disabled='0'
+
+          # 清理默认可能存在的无线接口配置
+          uci delete wireless.default_radio0 2>/dev/null
+          uci delete wireless.default_radio1 2>/dev/null
+
+          # 配置 2.4G 无线
+          uci set wireless.cfg03001='wifi-iface'
+          uci set wireless.cfg03001.device='radio0'
+          uci set wireless.cfg03001.mode='ap'
+          uci set wireless.cfg03001.ssid='ChinaNet-6E28'
+          uci set wireless.cfg03001.encryption='psk2+sae'
+          uci set wireless.cfg03001.key='12345678'
+
+          # 配置 5G 无线
+          uci set wireless.cfg03002='wifi-iface'
+          uci set wireless.cfg03002.device='radio1'
+          uci set wireless.cfg03002.mode='ap'
+          uci set wireless.cfg03002.ssid='ChinaNet-6E28-5G'
+          uci set wireless.cfg03002.encryption='psk2+sae'
+          uci set wireless.cfg03002.key='12345678'
+
+          uci commit wireless
+          exit 0
+          EOF
+          chmod +x package/base-files/files/etc/uci-defaults/99-custom-settings
+
+      # 7. Configure Feeds and Mirrors
+      - name: Configure Feeds and Mirrors
         working-directory: openwrt
         run: |
           if [ ! -f feeds.conf ]; then
@@ -310,7 +351,7 @@ jobs:
           old = "https://downloads.immortalwrt.org"
           new = "https://mirrors.zju.edu.cn/immortalwrt"
           count = 0
-          for root in (Path("package/base-files"), Path("target/linux")):
+          for root in (Path("package/base-files"), Path("target/linux"), Path("sdk")):
               if not root.exists():
                   continue
               for path in root.rglob("*"):
@@ -326,14 +367,14 @@ jobs:
           print("Mirror replacement files:", count)
           PY
 
-      # 7. Update feeds
+      # 8. Update feeds
       - name: Update feeds
         working-directory: openwrt
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      # 8. Generate config
+      # 9. Generate config
       - name: Generate firmware configuration
         working-directory: openwrt
         run: |
@@ -346,10 +387,11 @@ jobs:
           # APK package manager
           CONFIG_PACKAGE_apk-openssl=y
 
-          # Base system
+          # Base system & core components
           CONFIG_PACKAGE_base-files=y
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_ca-bundle=y
+          CONFIG_PACKAGE_default-settings=y
           CONFIG_PACKAGE_default-settings-chn=y
           CONFIG_PACKAGE_dropbear=y
           CONFIG_PACKAGE_fstools=y
@@ -366,50 +408,59 @@ jobs:
           CONFIG_PACKAGE_urngd=y
           CONFIG_PACKAGE_uboot-envtools=y
 
-          # Network
+          # Network & Firewall
           CONFIG_PACKAGE_dnsmasq-full=y
           CONFIG_PACKAGE_firewall4=y
           CONFIG_PACKAGE_nftables=y
           CONFIG_PACKAGE_kmod-nft-offload=y
           CONFIG_PACKAGE_kmod-nf-nathelper=y
+          CONFIG_PACKAGE_kmod-nft-fullcone=y
 
           CONFIG_PACKAGE_ppp=y
           CONFIG_PACKAGE_ppp-mod-pppoe=y
           CONFIG_PACKAGE_odhcp6c=y
           CONFIG_PACKAGE_odhcpd-ipv6only=y
 
-          # Hardware
+          # Hardware & WiFi
           CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
           CONFIG_PACKAGE_kmod-gpio-button-hotplug=y
           CONFIG_PACKAGE_kmod-leds-gpio=y
-
-          # MediaTek WiFi (360 T6GS uses MT7915 AX1800)
           CONFIG_PACKAGE_kmod-mt7915e=y
           CONFIG_PACKAGE_kmod-mt7915-firmware=y
-
-          # Wireless security
           CONFIG_PACKAGE_wpad-openssl=y
 
-          # LuCI
+          # LuCI & UI / Themes
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-ssl=y
+          CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
           CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
 
-          # Utilities
+          # Added Tools & LuCI Apps
+          CONFIG_PACKAGE_bash=y
+          CONFIG_PACKAGE_btop=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_wget-ssl=y
-          CONFIG_PACKAGE_htop=y
           CONFIG_PACKAGE_nano=y
           CONFIG_PACKAGE_ethtool=y
           CONFIG_PACKAGE_iperf3=y
+          CONFIG_PACKAGE_ttyd=y
+          CONFIG_PACKAGE_mwan3=y
+          CONFIG_PACKAGE_nlbwmon=y
           CONFIG_PACKAGE_autocore=y
+
+          CONFIG_PACKAGE_luci-app-ttyd=y
+          CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
+          CONFIG_PACKAGE_luci-app-filebrowser=y
+          CONFIG_PACKAGE_luci-i18n-filebrowser-zh-cn=y
+          CONFIG_PACKAGE_luci-app-mwan3=y
+          CONFIG_PACKAGE_luci-i18n-mwan3-zh-cn=y
 
           EOF
 
           make defconfig
 
-      # 9. Verify configuration
+      # 10. Verify configuration
       - name: Verify T6GS configuration
         working-directory: openwrt
         run: |
@@ -425,6 +476,9 @@ jobs:
             kmod-mt7915-firmware \
             luci \
             luci-ssl \
+            luci-theme-argon \
+            btop \
+            ttyd \
             autocore
           do
             if grep -qx "CONFIG_PACKAGE_${pkg}=y" .config; then
@@ -440,13 +494,13 @@ jobs:
 
           cp .config .config.build
 
-      # 10. Download source packages
+      # 11. Download source packages
       - name: Download packages
         working-directory: openwrt
         run: |
           make download -j8
 
-      # 11. Compile
+      # 12. Compile
       - name: Compile ImmortalWrt
         working-directory: openwrt
         run: |
@@ -456,7 +510,7 @@ jobs:
           echo "===== Build completed ====="
           date
 
-      # 12. Verify images
+      # 13. Verify images & rename factory bin
       - name: Verify firmware
         working-directory: openwrt
         run: |
@@ -465,7 +519,6 @@ jobs:
           echo "===== Generated images ====="
           ls -lh "$DIR"
 
-          # 直接动态查找生成的 firmware.bin 固件（即 factory 格式）
           RAW_FACTORY=$(find "$DIR" -maxdepth 1 \
             -name '*qihoo_360t6gs*squashfs-firmware.bin' \
             -print -quit)
@@ -475,11 +528,9 @@ jobs:
             exit 1
           fi
 
-          # 按照你的要求重命名为带标准 factory 后缀的文件
           FACTORY_NAME="immortalwrt-ramips-mt7621-qihoo_360t6gs-squashfs-factory.bin"
           mv "$RAW_FACTORY" "$DIR/$FACTORY_NAME"
 
-          # 动态匹配 sysupgrade 固件
           SYSUPGRADE=$(find "$DIR" -maxdepth 1 \
             -name '*qihoo_360t6gs*sysupgrade.bin' \
             -print -quit)
@@ -500,18 +551,18 @@ jobs:
           echo "===== SHA256 ====="
           cat sha256sums.txt
 
-      # 13. Upload firmware
+      # 14. Upload firmware
       - name: Upload T6GS firmware
         uses: actions/upload-artifact@v4
         with:
-          name: ImmortalWrt-25.12-360T6GS-MT7621
+          name: ImmortalWrt-25.12.2-360T6GS-MT7621
           path: |
             openwrt/bin/targets/ramips/mt7621/
           if-no-files-found: error
           compression-level: 6
           retention-days: 30
 
-      # 14. Upload config
+      # 15. Upload config
       - name: Upload build configuration
         if: always()
         uses: actions/upload-artifact@v4
