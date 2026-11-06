@@ -68,7 +68,7 @@ jobs:
           echo "===== ImmortalWrt version ====="
           git log -1 --oneline
 
-      # 4. Install T6GS DTS (严格对齐 3 个 LAN + 1 个 WAN 硬件)
+      # 4. Install T6GS DTS (严格对齐 3 个 LAN + 1 个 WAN 硬件，并禁用多余的 port@4)
       - name: Add T6GS DTS
         working-directory: openwrt
         run: |
@@ -246,7 +246,7 @@ jobs:
                 label = "wan";
               };
 
-              /* 如果原本有 port@4，可以将其删除、注释掉或设为 disabled */
+              /* 显式禁用多余的第5个端口，彻底消除多出来的 lan4 */
               port@4 {
                 status = "disabled";
               };
@@ -295,23 +295,33 @@ jobs:
           print("T6GS device definition registered.")
           PY
 
-      # 6. Customize Default IP, Argon Theme & Wireless (mixed WPA2/WPA3 PSK, SAE)
-      - name: Customize Default Settings, IP and Wireless
+      # 6. 底层直接修改源码默认 IP 为 192.168.2.1，并配置 Argon 主题及 Wi-Fi (mixed WPA2/WPA3 PSK, SAE)
+      - name: Patch Default IP, Argon Theme and Wireless Setup
         working-directory: openwrt
         run: |
+          # 6.1 从底层直接修改 config_generate，将默认 IP 固化为 192.168.2.1
+          python3 - <<'PY'
+          from pathlib import Path
+          config_gen = Path("package/base-files/files/bin/config_generate")
+          if config_gen.exists():
+              text = config_gen.read_text()
+              new_text = text.replace("192.168.1.1", "192.168.2.1")
+              config_gen.write_text(new_text)
+              print("[OK] Patched default LAN IP to 192.168.2.1")
+          else:
+              print("[ERROR] config_generate not found!")
+          PY
+
+          # 6.2 编写 uci-defaults 脚本配置 Argon 主题与 Wi-Fi 名称、密码、混合加密
           mkdir -p package/base-files/files/etc/uci-defaults
           cat > package/base-files/files/etc/uci-defaults/99-custom-settings << 'EOF'
           #!/bin/sh
 
-          # 1. 修改默认 LAN IP 为 192.168.2.1
-          uci set network.lan.ipaddr='192.168.2.1'
-          uci commit network
-
-          # 2. 强制将默认后台主题设置为 argon
+          # 强制将默认后台主题设置为 argon
           uci set luci.main.mediaurlbase='/luci-static/argon'
           uci commit luci
 
-          # 3. 自动配置无线 Wi-Fi 名称、密码与混合加密方式 (mixed WPA2/WPA3 PSK, SAE)
+          # 自动配置无线 Wi-Fi 名称、密码与混合加密方式 (mixed WPA2/WPA3 PSK, SAE)
           uci set wireless.radio0.disabled='0'
           uci set wireless.radio1.disabled='0'
 
