@@ -245,6 +245,11 @@ jobs:
                 status = "okay";
                 label = "wan";
               };
+
+              /* 如果原本有 port@4，可以将其删除、注释掉或设为 disabled */
+              port@4 {
+                status = "disabled";
+              };
             };
           };
 
