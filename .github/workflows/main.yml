@@ -387,6 +387,7 @@ jobs:
           CONFIG_PACKAGE_default-settings=y
           CONFIG_PACKAGE_default-settings-chn=y
           CONFIG_PACKAGE_dropbear=y
+          CONFIG_PACKAGE_openssh-sftp-server=y
           CONFIG_PACKAGE_fstools=y
           CONFIG_PACKAGE_libc=y
           CONFIG_PACKAGE_libgcc=y
