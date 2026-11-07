@@ -326,8 +326,8 @@ jobs:
           print("T6GS device definition registered.")
           PY
 
-      # 6. 底层直接修改源码默认 IP 为 192.168.2.1，并配置 Argon 主题及 Wi-Fi (mixed WPA2/WPA3 PSK, SAE)
-      - name: Patch Default IP, Argon Theme and Wireless Setup
+      # 6. 底层直接修改源码默认 IP 为 192.168.2.1，并配置 material 主题及 Wi-Fi (mixed WPA2/WPA3 PSK, SAE)
+      - name: Patch Default IP, material Theme and Wireless Setup
         working-directory: openwrt
         run: |
           # 6.1 从底层直接修改 config_generate，将默认 IP 固化为 192.168.2.1
@@ -343,13 +343,14 @@ jobs:
               print("[ERROR] config_generate not found!")
           PY
 
-          # 6.2 编写 uci-defaults 脚本配置 Argon 主题与 Wi-Fi 名称、密码、混合加密
+          # 6.2 编写 uci-defaults 脚本配置 material 主题与 Wi-Fi 名称、密码、混合加密
           mkdir -p package/base-files/files/etc/uci-defaults
           cat > package/base-files/files/etc/uci-defaults/99-custom-settings << 'EOF'
           #!/bin/sh
 
-          # 强制将默认后台主题设置为 argon
-          uci set luci.main.mediaurlbase='/luci-static/argon'
+          # 强制将默认后台主题设置为 material
+          uci set luci.main.mediaurlbase='/luci-static/material'
+          uci set upnpd.config.enabled='1'
           uci commit luci
 
           # 自动配置无线 Wi-Fi 名称、密码与混合加密方式 (mixed WPA2/WPA3 PSK, SAE)
@@ -481,6 +482,9 @@ jobs:
           CONFIG_PACKAGE_ttyd=y
           CONFIG_PACKAGE_nlbwmon=y
           CONFIG_PACKAGE_autocore=y
+          CONFIG_PACKAGE_luci-i18n-upnp=y
+          CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
+          CONFIG_PACKAGE_miniupnpd-nftables=y
 
           CONFIG_PACKAGE_luci-app-ttyd=y
           CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
