@@ -257,6 +257,41 @@ jobs:
           };
           DTS
 
+
+      # 4.5 修复 T6GS LAN/WAN 端口映射
+      - name: Fix T6GS Network Port Mapping
+        working-directory: openwrt
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "target/linux/ramips/mt7621/base-files/etc/board.d/02_network"
+          )
+
+          data = path.read_text()
+
+          marker = '\t*)\n\t\tucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"'
+
+          if 'qihoo,360t6gs)' in data:
+              raise SystemExit("T6GS network configuration already exists")
+
+          if marker not in data:
+              raise SystemExit("Cannot locate default network configuration")
+
+          replacement = '''\tqihoo,360t6gs)
+          \t\tucidef_set_interfaces_lan_wan "lan1 lan2 lan3" "wan"
+          \t\t;;
+          ''' + marker
+
+          data = data.replace(marker, replacement, 1)
+          path.write_text(data)
+
+          print("[OK] T6GS LAN/WAN mapping configured")
+          print("[OK] LAN: lan1 lan2 lan3")
+          print("[OK] WAN: wan")
+          PY
+
       # 5. Register T6GS NAND device
       - name: Register T6GS device
         working-directory: openwrt
