@@ -479,7 +479,6 @@ jobs:
           CONFIG_PACKAGE_ethtool=y
           CONFIG_PACKAGE_iperf3=y
           CONFIG_PACKAGE_ttyd=y
-          CONFIG_PACKAGE_mwan3=y
           CONFIG_PACKAGE_nlbwmon=y
           CONFIG_PACKAGE_autocore=y
 
@@ -487,8 +486,6 @@ jobs:
           CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
           CONFIG_PACKAGE_luci-app-filebrowser=y
           CONFIG_PACKAGE_luci-i18n-filebrowser-zh-cn=y
-          CONFIG_PACKAGE_luci-app-mwan3=y
-          CONFIG_PACKAGE_luci-i18n-mwan3-zh-cn=y
 
           EOF
 
